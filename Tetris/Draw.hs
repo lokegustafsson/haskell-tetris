@@ -33,7 +33,7 @@ attributeMap = const $ attrMap Vty.defAttr $ minoColor
 
 -- Draw all
 drawAll :: AppState -> [Widget ()]
-drawAll state = (:[]) $
+drawAll state = (:[]) $ center $
     spaceBorder $
     unicodeBorderWithLabel "TETRIS" $
     spaceBorder $
