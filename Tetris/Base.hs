@@ -3,7 +3,7 @@ module Tetris.Base
 , Falling (..)
 , Row
 , CellState
-, Tetramino (..)
+, Tetromino (..)
 , Orientation (..)
 , cellsOccupiedBy
 , placeDown
@@ -14,24 +14,24 @@ import System.Random.TF
 data AppState = AppState {
     paused :: Bool
 ,   score :: Integer
-,   saved :: Maybe Tetramino
+,   saved :: Maybe Tetromino
 ,   canSave :: Bool
-,   next :: [Tetramino]
+,   next :: [Tetromino]
 ,   falling :: Falling
 ,   grid :: [Row]
 ,   gen :: TFGen
 }
 
 data Falling = Falling {
-    kind :: Tetramino
+    kind :: Tetromino
 ,   orientation :: Orientation
 ,   pos :: (Int, Int)
 }
 
 type Row = [CellState]
-type CellState = Maybe Tetramino
+type CellState = Maybe Tetromino
 
-data Tetramino = I | O | T | J | L | S | Z deriving (Show)
+data Tetromino = I | O | T | J | L | S | Z deriving (Show)
 data Orientation = Or0 | Or1 | Or2 | Or3 deriving (Enum, Eq)
 
 cellsOccupiedBy :: Falling -> [(Int, Int)]
@@ -66,7 +66,7 @@ placeDown falling grid =
 columnsAtRow :: [(Int, Int)] -> Int -> [Int]
 columnsAtRow points row = map snd . filter (\pair -> fst pair == row) $ points
 
-addToRow :: Tetramino -> [CellState] -> [Int] -> [CellState]
+addToRow :: Tetromino -> [CellState] -> [Int] -> [CellState]
 addToRow kind row falling = map (\(c, state) ->
         if c `elem` falling then Just kind else state
     ) $ [0..9] `zip` row

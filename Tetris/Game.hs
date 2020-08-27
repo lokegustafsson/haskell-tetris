@@ -98,20 +98,24 @@ clearFullRows state = (incrScore earnedPoints) $ state { grid = newGrid }
                      1 -> 100
                      2 -> 300
                      3 -> 500
-                     4 -> 800
+                     4 -> 8
                      _ -> error "BUG: Invalid number of rows cleared"
 
 
 putInGrid :: AppState -> AppState
 putInGrid state@(AppState { next, falling, grid, gen }) =
-    if falling `fits` grid then withPlaced else newGame
+    if falling `fits` grid  && nextFalling `fits` nextGrid
+    then withPlaced
+    else newGame
   where
     withPlaced = addBagIfNecessary $ clearFullRows $ state {
                 canSave = True
               , next = tail next
-              , falling = makeFalling $ head next
-              , grid = placeDown falling grid
+              , falling = nextFalling
+              , grid = nextGrid
               }
+    nextFalling = makeFalling $ head next
+    nextGrid = placeDown falling grid
     newGame = initialState $ gen
 
 
@@ -124,7 +128,7 @@ addBagIfNecessary state@(AppState { next, gen }) =
 
 
 -- Small utilities
-makeFalling :: Tetramino -> Falling
+makeFalling :: Tetromino -> Falling
 makeFalling kind = Falling {
     kind
 ,   orientation = Or0
@@ -136,7 +140,7 @@ incrScore :: Integer -> AppState -> AppState
 incrScore points state = state { score = points + score state }
 
 
-getBag :: TF.TFGen -> (TF.TFGen, [Tetramino])
+getBag :: TF.TFGen -> (TF.TFGen, [Tetromino])
 getBag gen = (next, bag)
   where
     bag = shuffle' [I, O, T, J, L, S, Z] 7 gen
