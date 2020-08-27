@@ -2,8 +2,8 @@ module Tetris.Game
 ( initialState
 , moveRight
 , moveLeft
-, rotate
-, rotateCC
+, rotateClockwise
+, rotateCounterclockwise
 , tickDown
 , fullDrop
 , swapSaved
@@ -32,27 +32,32 @@ initialState gen = AppState {
 
 
 -- AppState transformations
-moveRight   :: AppState -> AppState
-moveRight = pausable $ move (0, 1)
+moveRight               :: AppState -> AppState
+moveRight               = pausable $ ifFits $ shift (0, 1)
 
-moveLeft    :: AppState -> AppState
-moveLeft = pausable $ move (0, -1)
+moveLeft                :: AppState -> AppState
+moveLeft                = pausable $ ifFits $ shift (0, -1)
 
-rotate      :: AppState -> AppState
-rotate = id
+rotateClockwise         :: AppState -> AppState
+rotateClockwise         = pausable $ ifFits $ rotate Or1
 
-rotateCC    :: AppState -> AppState
-rotateCC = id
+rotateCounterclockwise  :: AppState -> AppState
+rotateCounterclockwise  = pausable $ ifFits $ rotate Or3
 
-tickDown    :: AppState -> AppState
-tickDown = pausable $ incrScore . move (-1, 0)
+tickDown                :: AppState -> AppState
+tickDown                = pausable $ tickDown'
 
-fullDrop    :: AppState -> AppState
-fullDrop = id
+fullDrop                :: AppState -> AppState
+fullDrop                = pausable $ until isAtBottom moveDown
 
-swapSaved   :: AppState -> AppState
-swapSaved = pausable $ addBagIfNecessary . swapSaved'
+swapSaved               :: AppState -> AppState
+swapSaved               = pausable $ addBagIfNecessary . swapSaved'
 
+pause                   :: AppState -> AppState
+pause state             = state { paused = not $ paused state }
+
+
+-- Util
 swapSaved'   :: AppState -> AppState
 swapSaved' state@(AppState { canSave = False }) = state
 swapSaved' state@(AppState {
@@ -67,11 +72,29 @@ swapSaved' state@(AppState {
 swapSaved' AppState { next = [] } =
     error "BUG: tetramino bag should never be empty"
 
-pause       :: AppState -> AppState
-pause state = state { paused = not $ paused state }
+tickDown' :: AppState -> AppState
+tickDown' state@(AppState { next, falling, grid }) =
+    if shifted `fits` grid then
+        incrScore $ state { falling = shifted }
+    else
+        addBagIfNecessary $ state {
+                canSave = True
+              , next = tail next
+              , falling = makeFalling $ head next
+              , grid = placeDown falling grid
+              }
+  where
+    shifted = shift (-1, 0) falling
+
+moveDown :: AppState -> AppState
+moveDown state@(AppState { score, falling }) =
+    state { score = score + 1, falling = shift (-1, 0) falling }
+
+isAtBottom :: AppState -> Bool
+isAtBottom AppState { falling, grid } =
+    not $ (shift (-1, 0) falling) `fits` grid
 
 
--- Util
 pausable :: (AppState -> AppState) -> AppState -> AppState
 pausable stateTransform state =
     if paused state then state else stateTransform state
@@ -86,23 +109,6 @@ makeFalling kind = Falling {
 incrScore :: AppState -> AppState
 incrScore state = state { score = succ $ score state }
 
-allEmpty :: [[CellState]] -> [(Int, Int)] -> Bool
-allEmpty grid points = all (\(r, c) ->
-        and [0 <= r, r < 20, 0 <= c, c < 10, isNothing $ grid !! r !! c]
-    ) points
-
-move  :: (Int, Int) -> AppState -> AppState
-move offset state@(AppState { falling, grid }) =
-    if allEmpty grid $ cellsOccupiedBy shifted then
-        state { falling = shifted }
-    else state
-  where
-    shifted = shift offset falling
-
-shift :: (Int, Int) -> Falling -> Falling
-shift offset falling@(Falling { pos = (r, c) }) =
-    falling { pos = (r + fst offset, c + snd offset) }
-
 addBagIfNecessary :: AppState -> AppState
 addBagIfNecessary state@(AppState { next, gen }) =
     if length next >= 3 then state else
@@ -115,3 +121,28 @@ getBag gen = (next, bag)
   where
     bag = shuffle' [I, O, T, J, L, S, Z] 7 gen
     (_, next) = TF.next gen
+
+-- Movement
+fits :: Falling -> [[CellState]] -> Bool
+fits falling grid = all (\(r, c) ->
+        and [0 <= r, r < 20, 0 <= c, c < 10, isNothing $ grid !! r !! c]
+    ) $ cellsOccupiedBy falling
+
+shift :: (Int, Int) -> Falling -> Falling
+shift offset falling@(Falling { pos = (r, c) }) =
+    falling { pos = (r + fst offset, c + snd offset) }
+
+ifFits :: (Falling -> Falling) -> AppState -> AppState
+ifFits transform state =
+    if transformed `fits` (grid state) then
+        state { falling = transformed } else state
+  where
+    transformed = transform $ falling state
+
+rotate :: Orientation -> Falling -> Falling
+rotate Or0 fall = fall
+rotate orient fall = rotate (pred orient) $
+    if orientation fall == Or3 then
+        fall { orientation = Or0 }
+    else
+        fall { orientation = succ $ orientation fall }

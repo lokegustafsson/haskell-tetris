@@ -51,26 +51,8 @@ gameBox :: AppState -> Widget ()
 gameBox AppState { falling, grid } =
     vBox $ reverse $ map (\row ->
         hBox $ map stateToWidget row
-    ) $ addFalling falling grid
+    ) $ placeDown falling grid
 
 stateToWidget :: CellState -> Widget ()
 stateToWidget (Just t) = withAttr (attrName $ show $ Just t) $ str "    \n    "
 stateToWidget state    = withAttr (attrName $ show state)    $ str " .  \n    "
-
-
--- Util
-addFalling :: Falling -> [[CellState]] -> [[CellState]]
-addFalling falling grid =
-    map (\(r, row) ->
-        addToRow (kind falling) row (occupiedAtRow r)
-    ) $ [0..19] `zip` grid
-  where
-    occupiedAtRow = columnsAtRow $ cellsOccupiedBy falling
-
-columnsAtRow :: [(Int, Int)] -> Int -> [Int]
-columnsAtRow points row = map snd . filter (\pair -> fst pair == row) $ points
-
-addToRow :: Tetramino -> [CellState] -> [Int] -> [CellState]
-addToRow kind row falling = map (\(c, state) ->
-        if c `elem` falling then Just kind else state
-    ) $ [0..9] `zip` row

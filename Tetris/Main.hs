@@ -50,8 +50,8 @@ handleEvent state (VtyEvent (EvKey pressedKey _)) = continue $ action state
     action = case pressedKey of
         Vty.KRight      -> moveRight
         Vty.KLeft       -> moveLeft
-        Vty.KUp         -> rotate
-        Vty.KChar 'z'   -> rotateCC
+        Vty.KUp         -> rotateClockwise
+        Vty.KChar 'z'   -> rotateCounterclockwise
         Vty.KDown       -> tickDown
         Vty.KChar ' '   -> fullDrop
         Vty.KChar 'c'   -> swapSaved
