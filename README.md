@@ -12,12 +12,12 @@ way. To play tetris in the interpreter:
 
 
 ```shell
-runhaskell -Wall -XNamedFieldPuns Tetris.Main
+runhaskell -Wall -XNamedFieldPuns Tetris/Main
 ```
 
 or if you want an executable:
 
 ```shell
-ghc -threaded -O -Wall -XNamedFieldPuns Tetris.Main
+ghc -threaded -O -Wall -XNamedFieldPuns Tetris/Main
 ./Tetris/Main
 ```

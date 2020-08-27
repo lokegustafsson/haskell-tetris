@@ -1,5 +1,3 @@
-module Tetris.Main (main) where
-
 import Brick.BChan
 import Brick.Types
 import Brick.Main
