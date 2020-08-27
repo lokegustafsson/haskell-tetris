@@ -4,6 +4,7 @@ module Tetris.Game
 , moveLeft
 , rotateClockwise
 , rotateCounterclockwise
+, moveDown
 , tickDown
 , fullDrop
 , swapSaved
@@ -44,11 +45,15 @@ rotateClockwise         = pausable $ ifFits $ rotate Or1
 rotateCounterclockwise  :: AppState -> AppState
 rotateCounterclockwise  = pausable $ ifFits $ rotate Or3
 
+moveDown                :: AppState -> AppState
+moveDown                = pausable $ (incrScore 1) . moveDown'
+
 tickDown                :: AppState -> AppState
-tickDown                = pausable $ tickDown'
+tickDown                = pausable $ moveDown'
 
 fullDrop                :: AppState -> AppState
-fullDrop                = pausable $ until isAtBottom moveDown
+fullDrop                = pausable $ putInGrid .
+                            (until isAtBottom $ shiftDown . (incrScore 2))
 
 swapSaved               :: AppState -> AppState
 swapSaved               = pausable $ addBagIfNecessary . swapSaved'
@@ -57,57 +62,58 @@ pause                   :: AppState -> AppState
 pause state             = state { paused = not $ paused state }
 
 
--- Util
+-- Specific
+pausable :: (AppState -> AppState) -> AppState -> AppState
+pausable transform state = if paused state then state else transform state
+
+
 swapSaved'   :: AppState -> AppState
 swapSaved' state@(AppState { canSave = False }) = state
-swapSaved' state@(AppState {
-    saved
-,   next = n:nxs
-,   falling = Falling { kind }
-}) = state { saved = Just kind, canSave = False } &
-    case saved of
-      Nothing -> \s -> s { next = nxs, falling = makeFalling n }
-      Just saved' -> \s -> s { falling = makeFalling saved' }
+swapSaved' state@(AppState { saved
+                           , next = n:nxs
+                           , falling = Falling { kind }
+                           }) =
+    state { saved = Just kind, canSave = False } &
+        case saved of
+            Nothing -> \s -> s { next = nxs, falling = makeFalling n }
+            Just saved' -> \s -> s { falling = makeFalling saved' }
 
 swapSaved' AppState { next = [] } =
     error "BUG: tetramino bag should never be empty"
 
-tickDown' :: AppState -> AppState
-tickDown' state@(AppState { next, falling, grid }) =
-    if shifted `fits` grid then
-        incrScore $ state { falling = shifted }
-    else
-        addBagIfNecessary $ state {
+
+moveDown' :: AppState -> AppState
+moveDown' state = if isAtBottom state then putInGrid state else shiftDown state
+
+
+clearFullRows :: AppState -> AppState
+clearFullRows state = (incrScore earnedPoints) $ state { grid = newGrid }
+  where
+    notFull row = any isNothing row
+    cleared = filter notFull $ grid state
+    numCleared = 20 - length cleared
+    newGrid = cleared ++ (replicate numCleared $ replicate 10 Nothing)
+    earnedPoints = case numCleared of
+                     0 -> 0
+                     1 -> 100
+                     2 -> 300
+                     3 -> 500
+                     4 -> 800
+                     _ -> error "BUG: Invalid number of rows cleared"
+
+
+putInGrid :: AppState -> AppState
+putInGrid state@(AppState { next, falling, grid, gen }) =
+    if falling `fits` grid then withPlaced else newGame
+  where
+    withPlaced = addBagIfNecessary $ clearFullRows $ state {
                 canSave = True
               , next = tail next
               , falling = makeFalling $ head next
               , grid = placeDown falling grid
               }
-  where
-    shifted = shift (-1, 0) falling
+    newGame = initialState $ gen
 
-moveDown :: AppState -> AppState
-moveDown state@(AppState { score, falling }) =
-    state { score = score + 1, falling = shift (-1, 0) falling }
-
-isAtBottom :: AppState -> Bool
-isAtBottom AppState { falling, grid } =
-    not $ (shift (-1, 0) falling) `fits` grid
-
-
-pausable :: (AppState -> AppState) -> AppState -> AppState
-pausable stateTransform state =
-    if paused state then state else stateTransform state
-
-makeFalling :: Tetramino -> Falling
-makeFalling kind = Falling {
-    kind
-,   orientation = Or0
-,   pos = (18, 4)
-}
-
-incrScore :: AppState -> AppState
-incrScore state = state { score = succ $ score state }
 
 addBagIfNecessary :: AppState -> AppState
 addBagIfNecessary state@(AppState { next, gen }) =
@@ -116,21 +122,42 @@ addBagIfNecessary state@(AppState { next, gen }) =
   where
     (gen', bag) = getBag gen
 
+
+-- Small utilities
+makeFalling :: Tetramino -> Falling
+makeFalling kind = Falling {
+    kind
+,   orientation = Or0
+,   pos = (18, 4)
+}
+
+
+incrScore :: Integer -> AppState -> AppState
+incrScore points state = state { score = points + score state }
+
+
 getBag :: TF.TFGen -> (TF.TFGen, [Tetramino])
 getBag gen = (next, bag)
   where
     bag = shuffle' [I, O, T, J, L, S, Z] 7 gen
     (_, next) = TF.next gen
 
+
 -- Movement
+shiftDown :: AppState -> AppState
+shiftDown state = state { falling = shift (-1, 0) $ falling state }
+
+
+isAtBottom :: AppState -> Bool
+isAtBottom AppState { falling, grid } =
+    not $ (shift (-1, 0) falling) `fits` grid
+
+
 fits :: Falling -> [[CellState]] -> Bool
 fits falling grid = all (\(r, c) ->
         and [0 <= r, r < 20, 0 <= c, c < 10, isNothing $ grid !! r !! c]
     ) $ cellsOccupiedBy falling
 
-shift :: (Int, Int) -> Falling -> Falling
-shift offset falling@(Falling { pos = (r, c) }) =
-    falling { pos = (r + fst offset, c + snd offset) }
 
 ifFits :: (Falling -> Falling) -> AppState -> AppState
 ifFits transform state =
@@ -138,6 +165,12 @@ ifFits transform state =
         state { falling = transformed } else state
   where
     transformed = transform $ falling state
+
+
+shift :: (Int, Int) -> Falling -> Falling
+shift offset falling@(Falling { pos = (r, c) }) =
+    falling { pos = (r + fst offset, c + snd offset) }
+
 
 rotate :: Orientation -> Falling -> Falling
 rotate Or0 fall = fall

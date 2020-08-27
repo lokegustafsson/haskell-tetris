@@ -3,7 +3,6 @@ module Tetris.Draw
 , drawAll
 ) where
 
-import Prelude hiding (Left, Right)
 import Brick.AttrMap
 import Brick.Types                  (Widget)
 import Brick.Util

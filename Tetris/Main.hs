@@ -1,6 +1,5 @@
 module Tetris.Main (main) where
 
-import Prelude hiding (Left, Right)
 import Brick.BChan
 import Brick.Types
 import Brick.Main
@@ -11,7 +10,7 @@ import Graphics.Vty.Input.Events            (Event(EvKey));
 import System.Random.TF.Init                (newTFGen)
 import Tetris.Draw
 import Tetris.Game
-import Tetris.Base
+import Tetris.Base                          (AppState)
 
 type GameEvent = BrickEvent () Tick
 data Tick = Tick
@@ -45,14 +44,14 @@ handleEvent state (AppEvent Tick) = continue $ tickDown state
 
 handleEvent state (VtyEvent (EvKey (Vty.KChar 'q') _)) = halt state
 
-handleEvent state (VtyEvent (EvKey pressedKey _)) = continue $ action state
+handleEvent state (VtyEvent (EvKey pressedKey _)) = continue $ transform state
   where
-    action = case pressedKey of
+    transform = case pressedKey of
         Vty.KRight      -> moveRight
         Vty.KLeft       -> moveLeft
         Vty.KUp         -> rotateClockwise
         Vty.KChar 'z'   -> rotateCounterclockwise
-        Vty.KDown       -> tickDown
+        Vty.KDown       -> moveDown
         Vty.KChar ' '   -> fullDrop
         Vty.KChar 'c'   -> swapSaved
         Vty.KEsc        -> pause
