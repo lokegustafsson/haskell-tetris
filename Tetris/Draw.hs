@@ -7,19 +7,18 @@ import Brick.AttrMap
 import Brick.Types                  (Widget)
 import Brick.Util
 import Brick.Widgets.Border
-import Brick.Widgets.Border.Style   (unicode)
+import Brick.Widgets.Border.Style   (borderStyleFromChar, unicode)
+import Brick.Widgets.Center         (center, hCenter)
 import Brick.Widgets.Core
+import Data.List                    (intersperse)
+import Data.Maybe                   (isNothing)
 import qualified Graphics.Vty as Vty
 import Tetris.Base
 
 -- Attributes
 attributeMap :: AppState -> AttrMap
-attributeMap = const $ attrMap Vty.defAttr $ minoColor ++ attrs
+attributeMap = const $ attrMap Vty.defAttr $ minoColor
   where
-    attrs = [
-            (attrName $ show (Nothing :: CellState), bg Vty.black)
-        ,   (attrName $ show (Nothing :: CellState), fg Vty.white)
-        ]
     minoColor =
         map (\(mino, color) -> (attrName $ show $ Just mino, bg color))
         [   (I, Vty.brightBlue)
@@ -32,26 +31,91 @@ attributeMap = const $ attrMap Vty.defAttr $ minoColor ++ attrs
         ]
 
 
--- Widgets
+-- Draw all
 drawAll :: AppState -> [Widget ()]
-drawAll state = (:[]) $ withBorderStyle unicode $ hBox $ map (\box ->
-    border $ box state
-    ) [ gameBox, infoBox ]
-
-infoBox :: AppState -> Widget ()
-infoBox state = vBox $ map str [ pauseText, scoreText, savedText, nextText ]
+drawAll state = (:[]) $
+    spaceBorder $
+    unicodeBorderWithLabel "TETRIS" $
+    spaceBorder $
+    withBorderStyle unicode $
+        gb <+> hLimit 20 (nb <=> sb <=> helpBox <=> scoreBox)
   where
-    pauseText = if paused state then "Paused!" else " "
-    scoreText = "Score: "   ++ (show $ score state)
-    savedText = "Saved "    ++ (show $ saved state)
-    nextText  = "Next up: " ++ (show $ next state)
+    spaceBorder = withBorderStyle (borderStyleFromChar ' ') . border
+    unicodeBorderWithLabel label =
+        withBorderStyle unicode . (borderWithLabel $ str label)
+    gb = gameBox state
+    nb = nextBox state
+    sb = saveBox state
 
+-- Widgets
 gameBox :: AppState -> Widget ()
-gameBox AppState { falling, grid } =
-    vBox $ reverse $ map (\row ->
-        hBox $ map stateToWidget row
+gameBox AppState { paused, score, falling, grid } =
+    borderWithLabel borderText $ vBox $ reverse $ map (\row ->
+        hBox $ map cellWidget row
     ) $ placeDown falling grid
+  where
+    pauseText = if paused then "Paused! " else "Playing! "
+    borderText = str $ pauseText ++ (show score) ++ " points"
 
-stateToWidget :: CellState -> Widget ()
-stateToWidget (Just t) = withAttr (attrName $ show $ Just t) $ str "    \n    "
-stateToWidget state    = withAttr (attrName $ show state)    $ str " .  \n    "
+nextBox :: AppState -> Widget ()
+nextBox AppState { next } =
+    borderWithLabel (str "Next up") $ vBox $ intersperse emptyRow $
+    map singleTetromino $ take 3 next
+  where
+    emptyRow = hCenter $ str " "
+
+saveBox :: AppState -> Widget ()
+saveBox AppState { saved } = borderWithLabel (str "Saved") $
+    case saved of
+      Just t -> singleTetromino t
+      Nothing -> inTetrominoSpace $ str " "
+
+helpBox :: Widget ()
+helpBox = drawTable "Help" [(     "Quit",     "q")
+                           ,(    "Pause",   "esc")
+                           ,(    "Right",     "→")
+                           ,(     "Left",     "←")
+                           ,(   "Rotate",  "z, ↑")
+                           ,(     "Hold",     "c")
+                           ,("Soft drop",     "↓")
+                           ,("Hard drop", "space")]
+
+scoreBox :: Widget ()
+scoreBox = drawTable "Scoring" [(  "Line x1",    "100")
+                               ,(  "Line x2",    "300")
+                               ,(  "Line x3",    "500")
+                               ,(  "Line x4",    "800")
+                               ,("Soft drop", "1/tile")
+                               ,("Hard drop", "2/tile")]
+
+-- Helpers
+drawTable :: String -> [(String, String)] -> Widget ()
+drawTable title table = borderWithLabel (str title) $ vBox $
+    map (\(l, r) -> (str l) <+> (hCenter $ str " ") <+> (str r)) table
+
+singleTetromino :: Tetromino -> Widget ()
+singleTetromino kind = inTetrominoSpace $ vBox $ map rowWidget rows
+  where
+    rowWidget r = hBox $ map (\c -> widgetAtCell (r, c)) columns
+    widgetAtCell pos = (`applyColor` emptyCell) $
+        if pos `elem` occupied then Just kind else Nothing
+    occupied = cellsOccupiedBy Falling { kind, orientation = Or0, pos = (0, 0) }
+    rows = if kind == I then [0] else [0, 1]
+    columns = case kind of I -> [-1..2]
+                           O -> [0, 1]
+                           _ -> [-1..1]
+
+cellWidget :: CellState -> Widget ()
+cellWidget state = applyColor state $ if isNothing state then dottedCell
+                                                            else emptyCell
+applyColor :: CellState -> Widget () -> Widget ()
+applyColor state = withAttr $ attrName $ show state
+
+inTetrominoSpace :: Widget () -> Widget ()
+inTetrominoSpace = (vLimit 4) . center
+
+emptyCell :: Widget ()
+emptyCell = str "    \n    "
+
+dottedCell :: Widget ()
+dottedCell = str " .  \n    "

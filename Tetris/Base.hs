@@ -31,7 +31,7 @@ data Falling = Falling {
 type Row = [CellState]
 type CellState = Maybe Tetromino
 
-data Tetromino = I | O | T | J | L | S | Z deriving (Show)
+data Tetromino = I | O | T | J | L | S | Z deriving (Show, Eq)
 data Orientation = Or0 | Or1 | Or2 | Or3 deriving (Enum, Eq)
 
 cellsOccupiedBy :: Falling -> [(Int, Int)]
