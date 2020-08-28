@@ -5,6 +5,7 @@ module Tetris.Base
 , CellState
 , Tetromino (..)
 , Orientation (..)
+, levelGivenScore
 , cellsOccupiedBy
 , placeDown
 ) where
@@ -33,6 +34,9 @@ type CellState = Maybe Tetromino
 
 data Tetromino = I | O | T | J | L | S | Z deriving (Show, Eq)
 data Orientation = Or0 | Or1 | Or2 | Or3 deriving (Enum, Eq)
+
+levelGivenScore :: Integer -> Integer
+levelGivenScore score = floor $ (25 + (sqrt $ fromIntegral (10 * score + 625)) :: Double) / 50
 
 cellsOccupiedBy :: Falling -> [(Int, Int)]
 cellsOccupiedBy Falling { kind, orientation = o, pos } =

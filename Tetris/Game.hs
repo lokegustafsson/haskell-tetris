@@ -9,11 +9,14 @@ module Tetris.Game
 , fullDrop
 , swapSaved
 , pause
+, tickTime
 ) where
 
-import Data.Function         ((&))
-import Data.Maybe            (isNothing)
-import System.Random.Shuffle (shuffle')
+import Control.Concurrent.Suspend (Delay, msDelay)
+import Control.Exception          (assert)
+import Data.Function              ((&))
+import Data.Maybe                 (isNothing)
+import System.Random.Shuffle      (shuffle')
 import qualified System.Random.TF.Gen as TF
 import Tetris.Base
 
@@ -145,6 +148,13 @@ getBag gen = (next, bag)
   where
     bag = shuffle' [I, O, T, J, L, S, Z] 7 gen
     (_, next) = TF.next gen
+
+tickTime :: AppState -> Delay
+tickTime AppState { score } = msDelay $ floor $ (1000.0 * (assert (time > 0) time))
+  where
+    time :: Double
+    time = (0.8 - 0.007 * (fromInteger l)) ^ l
+    l = (levelGivenScore score) - 1
 
 
 -- Movement

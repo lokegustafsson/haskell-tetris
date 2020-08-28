@@ -8,7 +8,7 @@ import Brick.Types                  (Widget)
 import Brick.Util
 import Brick.Widgets.Border
 import Brick.Widgets.Border.Style   (borderStyleFromChar, unicode)
-import Brick.Widgets.Center         (center, hCenter)
+import Brick.Widgets.Center
 import Brick.Widgets.Core
 import Data.List                    (intersperse)
 import Data.Maybe                   (isNothing)
@@ -37,38 +37,43 @@ drawAll state = (:[]) $ center $
     spaceBorder $
     unicodeBorderWithLabel "TETRIS" $
     spaceBorder $
-    withBorderStyle unicode $
-        gb <+> hLimit 20 (nb <=> sb <=> helpBox <=> scoreBox)
+    withBorderStyle unicode $ vLimit 80 $ hLimit 62 $
+    stb <=> (gb <+> hLimit 20 (nb <=> svb <=> helpBox <=> scoreBox))
   where
     spaceBorder = withBorderStyle (borderStyleFromChar ' ') . border
     unicodeBorderWithLabel label =
         withBorderStyle unicode . (borderWithLabel $ str label)
     gb = gameBox state
+    stb = statsBox state
     nb = nextBox state
-    sb = saveBox state
+    svb = saveBox state
 
 -- Widgets
 gameBox :: AppState -> Widget ()
-gameBox AppState { paused, score, falling, grid } =
+gameBox AppState { paused, falling, grid } =
     borderWithLabel borderText $ vBox $ reverse $ map (\row ->
         hBox $ map cellWidget row
     ) $ placeDown falling grid
   where
-    pauseText = if paused then "Paused! " else "Playing! "
-    borderText = str $ pauseText ++ (show score) ++ " points"
+    borderText = str $ if paused then "Paused!" else "Playing!"
+
+statsBox :: AppState -> Widget ()
+statsBox AppState { score } = borderWithLabel (str "Stats") $ hBox $ map (hCenter . str)
+        ["Score: " ++ show score, "Level: " ++ show level]
+  where
+    level = levelGivenScore score
 
 nextBox :: AppState -> Widget ()
 nextBox AppState { next } =
-    borderWithLabel (str "Next up") $ vBox $ intersperse emptyRow $
+    borderWithLabel (str "Next up") $ vBox $ intersperse space $
     map singleTetromino $ take 3 next
-  where
-    emptyRow = hCenter $ str " "
 
 saveBox :: AppState -> Widget ()
-saveBox AppState { saved } = borderWithLabel (str "Saved") $
+saveBox AppState { saved } = borderWithLabel (str "Saved") $ (\w -> space <=> w <=> space) $
     case saved of
       Just t -> singleTetromino t
       Nothing -> inTetrominoSpace $ str " "
+
 
 helpBox :: Widget ()
 helpBox = drawTable "Help" [(     "Quit",     "q")
@@ -94,9 +99,9 @@ drawTable title table = borderWithLabel (str title) $ vBox $
     map (\(l, r) -> (str l) <+> (hCenter $ str " ") <+> (str r)) table
 
 singleTetromino :: Tetromino -> Widget ()
-singleTetromino kind = inTetrominoSpace $ vBox $ map rowWidget rows
+singleTetromino kind = inTetrominoSpace . vBox . reverse $ map rowWidget rows
   where
-    rowWidget r = hBox $ map (\c -> widgetAtCell (r, c)) columns
+    rowWidget r = hBox $ map (\c -> widgetAtCell (r, c)) $ columns
     widgetAtCell pos = (`applyColor` emptyCell) $
         if pos `elem` occupied then Just kind else Nothing
     occupied = cellsOccupiedBy Falling { kind, orientation = Or0, pos = (0, 0) }
@@ -113,6 +118,9 @@ applyColor state = withAttr $ attrName $ show state
 
 inTetrominoSpace :: Widget () -> Widget ()
 inTetrominoSpace = (vLimit 4) . center
+
+space :: Widget ()
+space = str " "
 
 emptyCell :: Widget ()
 emptyCell = str "    \n    "
